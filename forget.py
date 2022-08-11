@@ -10,6 +10,18 @@ import struct
 import spidriver
 
 
+def bitreverse_byte(b):
+    b = ((b & 0x55) << 1) | ((b & 0xaa) >> 1)
+    b = ((b & 0x33) << 2) | ((b & 0xcc) >> 2)
+    b = ((b & 0x0f) << 4) | ((b & 0xf0) >> 4)
+    return b
+
+bitreverse_byte_table = [bitreverse_byte(b) for b in range(256)]
+
+def bitreverse_bytes(d):
+    return bytes([bitreverse_byte(b) for b in d])
+
+
 class ForgeFPGA:
     def __init__(self, bitstream):
         self._bitstream_length_bytes = 11264 * 4
@@ -44,7 +56,7 @@ class ForgeFPGA:
         self._spi.write(zeros)
 
     def _send_bytes(self, data: bytes):
-        self._spi.write(data)
+        self._spi.write(bitreverse_bytes(data))
 
 
 

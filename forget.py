@@ -6,6 +6,7 @@
 
 import argparse
 import struct
+import time
 
 import spidriver
 
@@ -36,14 +37,26 @@ class ForgeFPGA:
 
     def download_to_ram(self, spi: spidriver.SPIDriver):
         self._spi = spi
+
+	# FPGA SPI /SS needs to be low at power-up to enable
+        # SPI slave mode configuration
+        self._set_fpga_power_and_enable(False)
         self._spi_select(True)
+        time.sleep(0.05)  # give thee FPGA some time to wake up
+        self._set_fpga_power_and_enable(True)
+
         self._send_zero_bytes(self._preamble_byte_count)
         self._send_bytes(self._sync_bytes)
         self._send_zero_bytes(self._regs_byte_count)
         self._send_bytes(self._bitstream)
         self._send_zero_bytes(self._postamble_byte_count)
+        
         self._spi_select(False)
         self._spi = None
+
+    def _set_fpga_power_and_enable(self, state: bool):
+        self._spi.seta(int(state))
+        self._spi.setb(int(state))
 
     def _spi_select(self, state: bool):
         if state:

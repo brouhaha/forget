@@ -11,16 +11,33 @@ import time
 import spidriver
 
 
-def bitreverse_byte(b):
-    b = ((b & 0x55) << 1) | ((b & 0xaa) >> 1)
-    b = ((b & 0x33) << 2) | ((b & 0xcc) >> 2)
-    b = ((b & 0x0f) << 4) | ((b & 0xf0) >> 4)
-    return b
+# The Renesas ForgeFPGA Configuration Guide Rev 1.0 dated May 31, 2022 has
+# a number of ambiguities.
 
-bitreverse_byte_table = [bitreverse_byte(b) for b in range(256)]
+# In section 4, "General SPI Interface", they talk about the four
+# possible SPI modes, and give an example of mode 0 (CPHA = 0, CPOL =
+# 0), but they don't anywhere actually state which mode is required by
+# the ForgeFPGA chip. The mode used by the Renesas ForgeFPGA
+# Evaluation Board is CPHA = 1, CPOL = 1. The Configuration Guide
+# Table 2 says that is mode 2, but other sources of SPI mode
+# documentation refer to that as mode 3.
 
-def bitreverse_bytes(d):
-    return bytes([bitreverse_byte(b) for b in d])
+# They don't explicity define what bit ordering the ForgeFPGA uses.
+# Figure 3 an example SPI byte transfer with most signficant bit first.
+
+# In section 8, "MCU Programming (Slave Mode)", in the list of programming
+# steps, it is said of the sync word 0x11ff22aa "Transmission starts from
+# the LSB. They mean tha the bytes are ordered starting with the least
+# significant byte (0xaa), but the bit order is still most signficant bit
+# (of a byte) first.
+
+# When the Renesas develo0pment software configures the FPGA on the
+# evaluation board, it first performs a single-word SPI transaction
+#   * assert SPI slave select
+#   * send one 32-bit word 0x55aa55aa, least significant byte first
+#   * deassert SPI slave select
+# This is not described in section 8. The purpose is unknown. Whether it
+# is required is unknown.
 
 
 class ForgeFPGA:
@@ -37,6 +54,8 @@ class ForgeFPGA:
 
     def download_to_ram(self, spi: spidriver.SPIDriver):
         self._spi = spi
+
+        self._spi.setmode(3)
 
 	# FPGA SPI /SS needs to be low at power-up to enable
         # SPI slave mode configuration
@@ -69,7 +88,7 @@ class ForgeFPGA:
         self._spi.write(zeros)
 
     def _send_bytes(self, data: bytes):
-        self._spi.write(bitreverse_bytes(data))
+        self._spi.write(data)
 
 
 
